@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Mini Smash — 1v1 (PC y Celular)</title>
+  <style>
+    :root{
+      --bg1:#041028; --bg2:#0b2948; --accent:#2b6df6;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:#fff;font-family:Inter, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent;}
+    .wrap{max-width:980px;margin:18px auto;padding:14px}
+    .card{background:rgba(255,255,255,0.02);padding:14px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.03)}
+    h1{margin:0 0 8px;font-size:20px;text-align:center}
+    /* selection */
+    #selection{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0}
+    .char-btn{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.02);cursor:pointer;border:1px solid rgba(255,255,255,0.03);transition:transform .12s,opacity .12s}
+    .char-btn:hover{transform:translateY(-4px)}
+    .swatch{width:44px;height:44px;border-radius:8px;flex:0 0 44px;box-shadow:inset 0 -6px 12px rgba(0,0,0,0.25)}
+    .char-name{font-weight:700}
+    .controls-row{display:flex;gap:8px;justify-content:center;margin-top:10px}
+    button{background:var(--accent);border:none;color:white;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700}
+    button.secondary{background:rgba(255,255,255,0.06)}
+    /* canvas area */
+    #canvasWrap{display:none;position:relative;margin-top:12px}
+    canvas{width:100%;max-width:900px;height:auto;border-radius:10px;display:block;margin:0 auto;background:linear-gradient(180deg,#4b79d8 0%, #0b2a63 70%, #021024 100%);box-shadow:0 12px 40px rgba(0,0,0,0.6)}
+    .hud{position:absolute;left:14px;right:14px;top:12px;display:flex;justify-content:space-between;pointer-events:none}
+    .panel{background:rgba(255,255,255,0.04);padding:8px 12px;border-radius:10px;pointer-events:auto}
+    .name{font-weight:800}
+    .life{height:8px;width:160px;border-radius:10px;background:rgba(0,0,0,0.35);overflow:hidden;margin-top:6px}
+    .life .bar{height:100%;background:linear-gradient(90deg,#34d399,#10b981);width:100%}
+    /* touch controls */
+    .touchLayer{position:absolute;left:0;right:0;bottom:0;height:36%;display:flex;justify-content:space-between;pointer-events:none}
+    .side{width:48%;display:flex;flex-direction:column;align-items:center;padding:8px;pointer-events:auto}
+    .dpad{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+    .btnTouch{background:rgba(255,255,255,0.06);border:none;color:#fff;padding:14px;border-radius:12px;font-weight:800;min-width:56px;min-height:56px;box-shadow:0 8px 20px rgba(0,0,0,0.5);touch-action:none}
+    .big{padding:18px;min-width:72px;min-height:72px;border-radius:16px;font-size:20px}
+    .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none}
+    .overlayBox{background:rgba(0,0,0,0.6);padding:14px 18px;border-radius:12px;pointer-events:auto;box-shadow:0 12px 40px rgba(0,0,0,0.6)}
+    .winner{position:absolute;left:0;right:0;top:44%;text-align:center;font-size:28px;font-weight:900;display:none;text-shadow:0 6px 18px rgba(0,0,0,0.6)}
+    .footer{margin-top:10px;font-size:13px;color:rgba(255,255,255,0.65);text-align:center}
+    @media (max-width:720px){ .touchLayer{height:42%} canvas{height:44vh} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Miiiii Borradoooooor Smash (Prueba: PC y Celular)</h1>
+
+      <div id="menu">
+        <p id="pickInfo" style="margin:6px 0 8px;font-weight:700">Jugador 1: elige</p>
+        <div id="selection" aria-label="personajes"></div>
+
+        <div class="controls-row">
+          <button id="resetPick" class="secondary">Reiniciar selección</button>
+          <button id="randomPick" class="secondary">Elegir aleatorio</button>
+        </div>
+
+        <p class="footer">Toca un personaje para asignarlo. Primero Jugador 1, luego Jugador 2. En PC usa teclado (J1: A/D W F  —  J2: ←/→ ↑ / ).</p>
+      </div>
+
+      <div id="canvasWrap">
+        <div class="hud">
+          <div class="panel" id="leftHud">
+            <div class="name" id="leftName">Jugador 1</div>
+            <div class="life"><div class="bar" id="leftLife"></div></div>
+          </div>
+          <div style="width:120px"></div>
+          <div class="panel" id="rightHud" style="text-align:right">
+            <div class="name" id="rightName">Jugador 2</div>
+            <div style="display:flex;justify-content:flex-end"><div class="life"><div class="bar" id="rightLife"></div></div></div>
+          </div>
+        </div>
+
+        <canvas id="game" width="900" height="450" aria-label="arena"></canvas>
+
+        <div class="touchLayer" id="touchLayer" aria-hidden="false" style="display:none">
+          <div class="side" id="leftSide">
+            <div class="dpad">
+              <button class="btnTouch" id="p1-left">◀</button>
+              <button class="btnTouch" id="p1-jump">▲</button>
+              <button class="btnTouch" id="p1-right">▶</button>
+            </div>
+            <div class="dpad">
+              <button class="btnTouch big" id="p1-attack">⚔</button>
+            </div>
+          </div>
+
+          <div class="side" id="rightSide" style="align-items:flex-end">
+            <div class="dpad">
+              <button class="btnTouch" id="p2-right">◀</button>
+              <button class="btnTouch" id="p2-jump">▲</button>
+              <button class="btnTouch" id="p2-left">▶</button>
+            </div>
+            <div class="dpad">
+              <button class="btnTouch big" id="p2-attack">⚔</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlay" id="overlay">
+          <div class="overlayBox">
+            <div id="overlayText">Result</div>
+            <div style="margin-top:8px;text-align:center">
+              <button id="restartBtn" class="secondary">Reiniciar</button>
+              <button id="backBtn" class="secondary">Volver a selección</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="winner" id="winnerText"></div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+/* ---------- datos ---------- */
+const names = ["Angelica","Josue","Cristina","David","Ramses","Yoaneth","Oliver","Diego","Ricardo"];
+const colors = ["#f97373","#60a5fa","#fbbf24","#34d399","#a78bfa","#f472b6","#fb923c","#22d3ee","#a3e635"];
+
+/* ---------- UI: selección ---------- */
+const selectionEl = document.getElementById('selection');
+const pickInfo = document.getElementById('pickInfo');
+let phase = 1; // 1 -> p1, 2 -> p2
+let pick1 = null, pick2 = null;
+
+function buildSelection(){
+  selectionEl.innerHTML = '';
+  names.forEach((n,i)=>{
+    const el = document.createElement('div');
+    el.className = 'char-btn';
+    el.dataset.name = n;
+    el.dataset.color = colors[i];
+    el.innerHTML = `<div class="swatch" style="background:${colors[i]}"></div><div><div class="char-name">${n}</div><div style="font-size:13px;color:rgba(255,255,255,0.7)">Toque para seleccionar</div></div>`;
+    el.addEventListener('click', ()=>selectChar(n,colors[i],el));
+    selectionEl.appendChild(el);
+  });
+}
+buildSelection();
+
+document.getElementById('resetPick').addEventListener('click', ()=>{
+  phase = 1; pick1 = null; pick2 = null; pickInfo.textContent = 'Jugador 1: elige';
+  // re-enable all
+  Array.from(selectionEl.children).forEach(c=>{ c.style.opacity = 1; c.style.pointerEvents = 'auto'; });
+});
+document.getElementById('randomPick').addEventListener('click', ()=>{
+  let a = Math.floor(Math.random()*names.length);
+  let b = Math.floor(Math.random()*names.length);
+  while(b===a) b = Math.floor(Math.random()*names.length);
+  pick1 = {name:names[a], color:colors[a]};
+  pick2 = {name:names[b], color:colors[b]};
+  begin();
+});
+
+function selectChar(name,color,el){
+  if(phase===1){
+    pick1 = {name, color};
+    phase = 2;
+    pickInfo.textContent = 'Jugador 2: elige';
+    // visually disable chosen
+    el.style.opacity = 0.45;
+    el.style.pointerEvents = 'none';
+  } else if(phase===2){
+    pick2 = {name, color};
+    // disable this one too
+    el.style.opacity = 0.45;
+    el.style.pointerEvents = 'none';
+    begin();
+  }
+}
+
+/* ---------- canvas y lógica ---------- */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const canvasWrap = document.getElementById('canvasWrap');
+const overlay = document.getElementById('overlay');
+const overlayText = document.getElementById('overlayText');
+const winnerText = document.getElementById('winnerText');
+const touchLayer = document.getElementById('touchLayer');
+
+let p1, p2;
+let last = performance.now();
+
+const gravity = 1600;
+const groundY = H - 60;
+const MOVE = 300;
+const JUMP = -680;
+const ATT_RANGE = 82;
+const ATT_DMG = 12;
+const ATT_KNOCK = 360;
+const ATT_CD = 0.5;
+
+const keyState = {};
+window.addEventListener('keydown', e=> keyState[e.code] = true);
+window.addEventListener('keyup', e=> keyState[e.code] = false);
+
+function makePlayer(x,color,name){
+  return {
+    x, y: groundY - 64, w:48, h:64,
+    vx:0, vy:0, facing:1, color, name,
+    health:100, alive:true, cooldown:0,
+    inputLeft:false, inputRight:false, inputJump:false, inputAttack:false, onGround:true
+  };
+}
+
+function begin(){
+  // hide menu, show canvas
+  document.getElementById('menu').style.display = 'none';
+  canvasWrap.style.display = 'block';
+  touchLayer.style.display = 'flex';
+  // hud names
+  document.getElementById('leftName').textContent = pick1.name;
+  document.getElementById('rightName').textContent = pick2.name;
+  // players
+  p1 = makePlayer(140, pick1.color, pick1.name);
+  p2 = makePlayer(W-190, pick2.color, pick2.name);
+  // reset lifebars
+  document.getElementById('leftLife').style.width = '100%';
+  document.getElementById('rightLife').style.width = '100%';
+  overlay.style.display = 'none'; winnerText.style.display = 'none';
+  last = performance.now();
+  // wire touch
+  setTimeout(wireTouchControls, 40);
+  requestAnimationFrame(loop);
+}
+
+/* draw doll (simple toy-like with shadow & gradient) */
+function drawDoll(p){
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(p.x + p.w/2, groundY + 6, p.w*0.9, 10, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // body gradient
+  const g = ctx.createLinearGradient(p.x, p.y, p.x, p.y + p.h);
+  g.addColorStop(0, lighten(p.color, 0.06));
+  g.addColorStop(1, darken(p.color, 0.12));
+
+  // torso
+  ctx.fillStyle = g;
+  roundRect(ctx, p.x + 6, p.y + 18, p.w - 12, p.h - 30, 10, true, false);
+
+  // head
+  const hx = p.x + p.w/2, hy = p.y + 10, hr = 12;
+  ctx.fillStyle = '#fbe7d2';
+  ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI*2); ctx.fill();
+  // head shade
+  ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.beginPath(); ctx.arc(hx, hy-2, hr, Math.PI, Math.PI*2); ctx.fill();
+
+  // limbs
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  // left arm
+  ctx.beginPath(); ctx.ellipse(p.x + 2, p.y + 36, 7, 12, -0.25, 0, Math.PI*2); ctx.fill();
+  // right arm
+  ctx.beginPath(); ctx.ellipse(p.x + p.w -2, p.y + 36, 7, 12, 0.25, 0, Math.PI*2); ctx.fill();
+  // legs
+  ctx.beginPath(); ctx.ellipse(p.x + 14, p.y + p.h - 6, 10, 14, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(p.x + p.w - 14, p.y + p.h - 6, 10, 14, 0, 0, Math.PI*2); ctx.fill();
+
+  // body fill on top for color effect
+  ctx.fillStyle = g;
+  roundRect(ctx, p.x + 6, p.y + 18, p.w - 12, p.h - 30, 10, false, true);
+  ctx.fill();
+
+  // name plate
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(p.x - 4, p.y - 30, p.w + 8, 22);
+  ctx.fillStyle = '#fff';
+  ctx.font = '14px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(p.name, p.x + p.w/2, p.y - 14);
+}
+
+/* helpers color & shapes */
+function roundRect(ctx,x,y,w,h,r,fill,stroke){
+  if(typeof r==='undefined') r=8;
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+  if(fill) ctx.fill();
+  if(stroke){ ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.stroke(); }
+}
+function hexToRgb(hex){ hex=hex.replace('#',''); return {r:parseInt(hex.slice(0,2),16), g:parseInt(hex.slice(2,4),16), b:parseInt(hex.slice(4,6),16)}; }
+function rgbToHex(r,g,b){ return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+function lighten(hex, amt){ const c=hexToRgb(hex); const r=Math.round(c.r + 255*amt); const g=Math.round(c.g + 255*amt); const b=Math.round(c.b + 255*amt); return rgbToHex(clamp(r,0,255),clamp(g,0,255),clamp(b,0,255)); }
+function darken(hex, amt){ const c=hexToRgb(hex); return rgbToHex(clamp(Math.round(c.r*(1-amt)),0,255),clamp(Math.round(c.g*(1-amt)),0,255),clamp(Math.round(c.b*(1-amt)),0,255)); }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+/* update & physics */
+function process(p, left, right, jump, attack, dt){
+  if(!p.alive) return;
+  if(left && !right){ p.vx = -MOVE; p.facing = -1; }
+  else if(right && !left){ p.vx = MOVE; p.facing = 1; }
+  else p.vx *= 0.84;
+
+  if(jump && p.onGround){ p.vy = JUMP; p.onGround = false; }
+
+  p.vy += gravity * dt;
+  p.x += p.vx * dt;
+  p.y += p.vy * dt;
+
+  if(p.y + p.h > groundY){ p.y = groundY - p.h; p.vy = 0; p.onGround = true; }
+  if(p.x < 8){ p.x = 8; p.vx = 0; }
+  if(p.x + p.w > W-8){ p.x = W-8-p.w; p.vx = 0; }
+
+  // attack
+  if(attack && p.cooldown <= 0){
+    p.cooldown = ATT_CD;
+    const other = (p === p1) ? p2 : p1;
+    const dx = (other.x + other.w/2) - (p.x + p.w/2);
+    if(Math.abs(dx) < ATT_RANGE && Math.sign(dx) === p.facing){
+      other.health -= ATT_DMG;
+      other.vx = p.facing * ATT_KNOCK;
+      other.vy = -220;
+      if(other.health <= 0){
+        other.alive = false;
+        finish(p.name);
+      }
+    }
+  }
+  if(p.cooldown > 0) p.cooldown -= dt;
+}
+
+/* main update/draw */
+function update(dt){
+  if(!p1 || !p2) return;
+  if(!p1.alive || !p2.alive) return;
+
+  const p1Left = keyState['KeyA'] || p1.inputLeft;
+  const p1Right = keyState['KeyD'] || p1.inputRight;
+  const p1Jump = keyState['KeyW'] || p1.inputJump;
+  const p1Atk = keyState['KeyF'] || p1.inputAttack;
+
+  const p2Left = keyState['ArrowLeft'] || p2.inputLeft;
+  const p2Right = keyState['ArrowRight'] || p2.inputRight;
+  const p2Jump = keyState['ArrowUp'] || p2.inputJump;
+  const p2Atk = keyState['Slash'] || p2.inputAttack || keyState['Backslash'];
+
+  process(p1, p1Left, p1Right, p1Jump, p1Atk, dt);
+  process(p2, p2Left, p2Right, p2Jump, p2Atk, dt);
+
+  // small push if overlapping
+  const overlap = (p1.x + p1.w) - p2.x;
+  if(overlap > -6 && overlap < 60){
+    if(p1.x < p2.x){
+      p1.x -= overlap*0.02;
+      p2.x += overlap*0.02;
+    }
+  }
+}
+
+function draw(){
+  // clear
+  ctx.clearRect(0,0,W,H);
+
+  // subtle sky overlay
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'rgba(255,255,255,0.02)');
+  sky.addColorStop(1,'rgba(0,0,0,0.04)');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,W,H);
+
+  // ground
+  ctx.fillStyle = '#071b2f';
+  ctx.fillRect(0, groundY, W, H-groundY);
+
+  // platform center
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  roundRect(ctx, W/2 - 140, groundY - 80, 280, 18, 10, true, false);
+
+  // draw players
+  if(p1) drawDoll(p1);
+  if(p2) drawDoll(p2);
+
+  // update hud bars
+  if(p1 && p2){
+    document.getElementById('leftLife').style.width = clamp((p1.health/100)*100,0,100) + '%';
+    document.getElementById('rightLife').style.width = clamp((p2.health/100)*100,0,100) + '%';
+  }
+}
+
+function loop(now){
+  const dt = (now - last)/1000;
+  last = now;
+  if(p1 && p2 && p1.alive && p2.alive){
+    update(dt);
+    draw();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* finish */
+function finish(winner){
+  winnerText.textContent = `¡${winner} gana!`;
+  winnerText.style.display = 'block';
+  overlayText.textContent = `¡${winner} gana!`;
+  overlay.style.display = 'flex';
+  overlay.style.pointerEvents = 'auto';
+}
+
+/* ---------- touch wiring ---------- */
+function wireTouch(id, player, action){
+  const el = document.getElementById(id);
+  let active = false;
+  el.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    active = true;
+    player['input' + action] = true;
+  }, {passive:false});
+  const up = e=>{
+    if(!active) return;
+    active = false;
+    player['input' + action] = false;
+  };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('pointerleave', up);
+}
+
+function wireTouchById(id, getter, action){
+  const el = document.getElementById(id);
+  let active = false;
+  el.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    active = true;
+    const pl = getter();
+    if(pl) pl['input' + action] = true;
+  }, {passive:false});
+  const up = e=>{
+    if(!active) return;
+    active = false;
+    const pl = getter();
+    if(pl) pl['input' + action] = false;
+  };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('pointerleave', up);
+}
+
+function wireTouchControls(){
+  // left side -> p1
+  wireTouchById('p1-left', ()=>p1, 'Left');
+  wireTouchById('p1-right', ()=>p1, 'Right');
+  wireTouchById('p1-jump', ()=>p1, 'Jump');
+  wireTouchById('p1-attack', ()=>p1, 'Attack');
+
+  // right side -> p2 (note flipped labels/buttons)
+  wireTouchById('p2-left', ()=>p2, 'Left');
+  wireTouchById('p2-right', ()=>p2, 'Right');
+  wireTouchById('p2-jump', ()=>p2, 'Jump');
+  wireTouchById('p2-attack', ()=>p2, 'Attack');
+
+  // show touch controls on small screens
+  if(window.innerWidth <= 920) touchLayer.style.display = 'flex';
+  else touchLayer.style.display = 'flex'; // keep visible; users can ignore
+}
+
+/* overlay buttons */
+document.getElementById('restartBtn').addEventListener('click', ()=>{
+  if(!p1 || !p2) return;
+  p1.health = 100; p2.health = 100; p1.alive = true; p2.alive = true;
+  p1.x = 140; p2.x = W-190;
+  overlay.style.display = 'none'; winnerText.style.display = 'none';
+});
+document.getElementById('backBtn').addEventListener('click', ()=>{
+  // back to selection
+  canvasWrap.style.display = 'none';
+  document.getElementById('menu').style.display = 'block';
+  touchLayer.style.display = 'none';
+  // re-enable selection
+  Array.from(selectionEl.children).forEach(c=>{ c.style.opacity = 1; c.style.pointerEvents = 'auto' });
+  pick1 = null; pick2 = null; phase = 1; pickInfo.textContent = 'Jugador 1: elige';
+});
+
+/* keyboard attack fallback mapping for "/" key (some keyboards differ) */
+window.addEventListener('keydown', e=>{
+  if(e.key === '/') keyState['Slash'] = true;
+});
+window.addEventListener('keyup', e=>{
+  if(e.key === '/') keyState['Slash'] = false;
+});
+
+/* init */
+(function init(){
+  // small note
+  const footer = document.createElement('div');
+  footer.className = 'footer';
+  footer.innerHTML = 'Controles teclado: <strong>Jugador1</strong> A D W (F para atacar) — <strong>Jugador2</strong> ← → ↑ (/ para atacar). En celular usa los botones laterales.';
+  document.querySelector('.card').appendChild(footer);
+})();
+</script>
+</body>
+</html>
